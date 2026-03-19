@@ -728,7 +728,7 @@ function renderPerWeekDeltaChart(events, allRows) {
 }
 
 function renderAggTable(events, allRows) {
-  let html = '<table class="agg-table"><thead><tr><th>Event</th><th>Location</th><th>Matches</th><th>Avg Sched CT</th><th>Mean CT</th><th>Median CT</th><th>Std Dev</th><th>Avg Δ Sched</th></tr></thead><tbody>';
+  let html = '<table class="agg-table"><thead><tr><th>Week</th><th>Event</th><th>Location</th><th>Matches</th><th>Avg Sched CT</th><th>Mean CT</th><th>Median CT</th><th>Std Dev</th><th>Avg Δ Sched</th></tr></thead><tbody>';
   for (let i = 0; i < events.length; i++) {
     const e        = events[i];
     const cts      = cycleTimes(allRows[i]);
@@ -736,7 +736,9 @@ function renderAggTable(events, allRows) {
     const schedCts = scheduledCycleTimes(allRows[i]);
     const played   = allRows[i] ? allRows[i].filter(r => r.actual).length : 0;
     const avgD     = ds.length ? fmtDeltaObj(mean(ds)) : { text: '—', cls: '' };
+    const wk       = e.week != null ? `<a href="#week/${e.week + 1}" style="color:var(--accent);text-decoration:none">Wk ${e.week + 1}</a>` : '—';
     html += `<tr>
+      <td class="muted-cell">${wk}</td>
       <td><a href="#event/${e.key}">${e.name}</a></td>
       <td class="muted-cell">${[e.city, e.state_prov].filter(Boolean).join(', ')}</td>
       <td class="muted-cell">${played || '—'}</td>
