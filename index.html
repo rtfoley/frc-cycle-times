@@ -256,6 +256,16 @@ function stddev(a) {
   return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length);
 }
 function cycleTimes(rows) { return (rows || []).filter(r => r.cycleTime != null && !r.isOutlier).map(r => r.cycleTime); }
+function scheduledCycleTimes(rows) {
+  if (!rows) return [];
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i], prev = rows[i - 1];
+    if (r.isPostBreak || !r.scheduled || !prev.scheduled) continue;
+    out.push(r.scheduled - prev.scheduled);
+  }
+  return out;
+}
 function deltas(rows)     { return (rows || []).filter(r => r.delta != null).map(r => r.delta); }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -292,11 +302,14 @@ function eventStatus(e) {
 function statCard(val, label, cls) {
   return `<div class="stat"><div class="stat-value ${cls||''}">${val}</div><div class="stat-label">${label}</div></div>`;
 }
-function renderStats(cts, ds) {
+function renderStats(cts, ds, schedCts) {
   if (!cts.length) return '<div style="color:var(--muted);font-size:0.875rem">No timing data yet.</div>';
   const avgD   = ds.length ? mean(ds) : null;
   const deltaH = avgD != null
     ? statCard(fmtDeltaObj(avgD).text, 'Mean Δ Schedule', fmtDeltaObj(avgD).cls)
+    : '';
+  const schedH = schedCts && schedCts.length
+    ? statCard(fmtDur(mean(schedCts)), 'Avg Scheduled CT')
     : '';
   return [
     statCard(cts.length,           'Cycle Times'),
@@ -305,6 +318,7 @@ function renderStats(cts, ds) {
     statCard(fmtDur(stddev(cts)),  'Std Dev'),
     statCard(fmtDur(Math.min(...cts)), 'Min'),
     statCard(fmtDur(Math.max(...cts)), 'Max'),
+    schedH,
     deltaH,
   ].join('');
 }
@@ -458,8 +472,8 @@ async function viewEvent(code) {
       [eventData.city, eventData.state_prov, eventData.country].filter(Boolean).join(', ') +
       (eventData.start_date ? '  ·  ' + eventData.start_date : '');
 
-    const cts = cycleTimes(rows), ds = deltas(rows);
-    document.getElementById('evt-stats').innerHTML = renderStats(cts, ds);
+    const cts = cycleTimes(rows), ds = deltas(rows), schedCts = scheduledCycleTimes(rows);
+    document.getElementById('evt-stats').innerHTML = renderStats(cts, ds, schedCts);
 
     // Distribution chart
     if (cts.length) mkChart('evt-dist', distChartConfig(cts));
@@ -570,11 +584,12 @@ async function viewOverall() {
 
 // ── Shared aggregate renderer ─────────────────────────────────────────────────
 function renderAggregatePage(title, subtitle, backHref, events, allRows, deltaChartMode) {
-  const pooledCts = [], pooledDs = [];
+  const pooledCts = [], pooledDs = [], pooledSchedCts = [];
   for (const rows of allRows) {
     if (!rows) continue;
     pooledCts.push(...cycleTimes(rows));
     pooledDs.push(...deltas(rows));
+    pooledSchedCts.push(...scheduledCycleTimes(rows));
   }
 
   const eventsWithData = events.filter((_, i) => allRows[i] && cycleTimes(allRows[i]).length > 0);
@@ -586,7 +601,7 @@ function renderAggregatePage(title, subtitle, backHref, events, allRows, deltaCh
     <p class="page-sub">${subtitle}${totalMatches ? ` · ${totalMatches.toLocaleString()} matches played` : ''}</p>
     <div class="card">
       <h2>Cycle Time Statistics</h2>
-      <div class="stats-grid">${renderStats(pooledCts, pooledDs)}</div>
+      <div class="stats-grid">${renderStats(pooledCts, pooledDs, pooledSchedCts)}</div>
     </div>
     <div class="charts-grid">
       <div class="card"><h2>Distribution</h2><div class="chart-wrap"><canvas id="agg-dist"></canvas></div></div>
@@ -669,17 +684,19 @@ function renderPerWeekDeltaChart(events, allRows) {
 }
 
 function renderAggTable(events, allRows) {
-  let html = '<table class="agg-table"><thead><tr><th>Event</th><th>Location</th><th>Matches</th><th>Mean CT</th><th>Median CT</th><th>Std Dev</th><th>Avg Δ Sched</th></tr></thead><tbody>';
+  let html = '<table class="agg-table"><thead><tr><th>Event</th><th>Location</th><th>Matches</th><th>Avg Sched CT</th><th>Mean CT</th><th>Median CT</th><th>Std Dev</th><th>Avg Δ Sched</th></tr></thead><tbody>';
   for (let i = 0; i < events.length; i++) {
-    const e   = events[i];
-    const cts = cycleTimes(allRows[i]);
-    const ds  = deltas(allRows[i]);
-    const played = allRows[i] ? allRows[i].filter(r => r.actual).length : 0;
-    const avgD = ds.length ? fmtDeltaObj(mean(ds)) : { text: '—', cls: '' };
+    const e        = events[i];
+    const cts      = cycleTimes(allRows[i]);
+    const ds       = deltas(allRows[i]);
+    const schedCts = scheduledCycleTimes(allRows[i]);
+    const played   = allRows[i] ? allRows[i].filter(r => r.actual).length : 0;
+    const avgD     = ds.length ? fmtDeltaObj(mean(ds)) : { text: '—', cls: '' };
     html += `<tr>
       <td><a href="#event/${e.key}">${e.name}</a></td>
       <td class="muted-cell">${[e.city, e.state_prov].filter(Boolean).join(', ')}</td>
       <td class="muted-cell">${played || '—'}</td>
+      <td class="muted-cell">${schedCts.length ? fmtDur(mean(schedCts)) : '—'}</td>
       <td>${cts.length ? fmtDur(mean(cts)) : '—'}</td>
       <td>${cts.length ? fmtDur(median(cts)) : '—'}</td>
       <td>${cts.length ? fmtDur(stddev(cts)) : '—'}</td>
