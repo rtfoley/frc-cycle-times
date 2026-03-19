@@ -177,11 +177,11 @@ function mkChart(id, config) {
 }
 
 // ── TBA fetching ─────────────────────────────────────────────────────────────
-const TBA_HEADERS = { headers: { 'X-TBA-Auth-Key': TBA_KEY } };
+function tbaUrl(path) { return `https://www.thebluealliance.com${path}${path.includes('?') ? '&' : '?'}X-TBA-Auth-Key=${TBA_KEY}`; }
 
 async function fetchEvents() {
   if (eventsCache) return eventsCache;
-  const r = await fetch('https://www.thebluealliance.com/api/v3/events/2026', TBA_HEADERS);
+  const r = await fetch(tbaUrl('/api/v3/events/2026'));
   if (!r.ok) throw new Error('Failed to load event list');
   const all = await r.json();
   eventsCache = all
@@ -192,7 +192,7 @@ async function fetchEvents() {
 
 async function fetchEventRows(code) {
   if (matchesCache[code]) return matchesCache[code];
-  const r = await fetch(`https://www.thebluealliance.com/api/v3/event/${code}/matches`, TBA_HEADERS);
+  const r = await fetch(tbaUrl(`/api/v3/event/${code}/matches`));
   if (!r.ok) return null;
   const rows = processMatches(await r.json());
   matchesCache[code] = rows;
@@ -448,7 +448,7 @@ async function viewEvent(code) {
   try {
     const [rows, eventData] = await Promise.all([
       fetchEventRows(code),
-      fetch(`https://www.thebluealliance.com/api/v3/event/${code}`, TBA_HEADERS).then(r => r.ok ? r.json() : {}),
+      fetch(tbaUrl(`/api/v3/event/${code}`)).then(r => r.ok ? r.json() : {}),
     ]);
     if (!rows || rows.length === 0) throw new Error('No qual matches found');
 
@@ -696,7 +696,7 @@ let searchIndex = null, taActive = -1;
 async function ensureSearchIndex() {
   if (searchIndex !== null) return;
   try {
-    const r = await fetch('https://www.thebluealliance.com/api/v3/search_index', TBA_HEADERS);
+    const r = await fetch(tbaUrl('/api/v3/search_index'));
     const data = await r.json();
     searchIndex = (data.events || [])
       .filter(e => e.key && e.key.startsWith('2026'))
