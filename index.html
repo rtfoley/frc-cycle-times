@@ -211,15 +211,18 @@ function iqrOutlierBounds(values) {
 function processMatches(data) {
   const quals = data.filter(m => m.comp_level === 'qm').sort((a, b) => a.match_number - b.match_number);
   const rows = quals.map((m, i) => {
-    let cycleTime = null, isPostBreak = (i === 0);
+    let cycleTime = null, scheduledCT = null, isPostBreak = (i === 0);
     if (i > 0) {
       // Use scheduled times to detect breaks — actual times can have large gaps
       // due to delays or replays that aren't real breaks in the schedule
       const schedGap = (m.time && quals[i - 1].time) ? m.time - quals[i - 1].time : null;
       if (schedGap != null && schedGap > BREAK_GAP) {
         isPostBreak = true;
-      } else if (m.actual_time && quals[i - 1].actual_time) {
-        cycleTime = m.actual_time - quals[i - 1].actual_time;
+      } else {
+        scheduledCT = schedGap;
+        if (m.actual_time && quals[i - 1].actual_time) {
+          cycleTime = m.actual_time - quals[i - 1].actual_time;
+        }
       }
     }
     const delta = (m.time && m.actual_time) ? m.time - m.actual_time : null;
@@ -227,7 +230,7 @@ function processMatches(data) {
     const crossDay = m.time && m.actual_time &&
       new Date(m.time * 1000).toISOString().slice(0, 10) !== new Date(m.actual_time * 1000).toISOString().slice(0, 10);
     if (crossDay) { cycleTime = null; }
-    return { matchNum: m.match_number, scheduled: m.time, actual: m.actual_time, cycleTime, isPostBreak, delta: crossDay ? null : delta, isOutlier: crossDay };
+    return { matchNum: m.match_number, scheduled: m.time, actual: m.actual_time, cycleTime, scheduledCT, isPostBreak, delta: crossDay ? null : delta, isOutlier: crossDay };
   });
   // Mark IQR outliers (replays, data oddities) — don't include in stats or charts
   const rawCts = rows.map(r => r.cycleTime).filter(v => v != null);
@@ -538,10 +541,10 @@ async function viewEvent(code) {
     }
 
     // Match table
-    let tbl = '<table class="match-table"><thead><tr><th>Match</th><th>Scheduled</th><th>Actual</th><th>Δ Schedule</th><th>Cycle Time</th></tr></thead><tbody>';
+    let tbl = '<table class="match-table"><thead><tr><th>Match</th><th>Scheduled</th><th>Actual</th><th>Δ Schedule</th><th>Sched CT</th><th>Cycle Time</th></tr></thead><tbody>';
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      if (r.isPostBreak && i > 0) tbl += '<tr class="break-row"><td colspan="5">— break —</td></tr>';
+      if (r.isPostBreak && i > 0) tbl += '<tr class="break-row"><td colspan="6">— break —</td></tr>';
       const d = fmtDeltaObj(r.delta);
       const outlierCls = r.isOutlier ? ' outlier-row' : '';
       tbl += `<tr class="${outlierCls}">
@@ -549,6 +552,7 @@ async function viewEvent(code) {
         <td class="muted-cell">${fmtTime(r.scheduled)}</td>
         <td>${r.actual ? fmtTime(r.actual) : '<span class="muted-cell">not played</span>'}</td>
         <td class="${d.cls}">${d.text}</td>
+        <td class="muted-cell">${fmtDur(r.scheduledCT)}</td>
         <td class="${r.cycleTime == null ? 'muted-cell' : ''}">${fmtDur(r.cycleTime)}${r.isOutlier ? '<span class="outlier-badge">(outlier)</span>' : ''}</td>
       </tr>`;
     }
