@@ -382,6 +382,17 @@ async function viewHome() {
           <p class="subtitle">Qual match cycle time analysis · ${events.length} events</p>
         </div>
         <a href="#overall" class="btn-primary">📊 Overall Season</a>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="input-row">
+          <div class="field" style="flex:1;min-width:160px">
+            <label>Jump to Event</label>
+            <div class="typeahead-wrap">
+              <input id="homeSearch" type="text" placeholder="Event code or name…" spellcheck="false" autocomplete="off">
+              <div id="homeSearchDropdown" class="typeahead-dropdown hidden"></div>
+            </div>
+          </div>
+        </div>
       </div>`;
 
     for (const wk of weekKeys) {
@@ -419,6 +430,9 @@ async function viewHome() {
       html += `</div></div>`;
     }
     setApp(html);
+    // Pre-populate searchIndex from already-loaded events, then wire up home typeahead
+    if (!searchIndex) searchIndex = events.map(e => ({ key: e.key, value: e.name }));
+    initHomeTypeahead();
   } catch (e) {
     setApp(`<div class="error">Error: ${e.message}</div>`);
   }
@@ -477,9 +491,11 @@ async function viewEvent(code) {
 
     statusEl.textContent = '';
     document.getElementById('evt-name').textContent   = eventData.name || code.toUpperCase();
-    document.getElementById('evt-detail').textContent =
+    const weekNum = eventData.week != null ? eventData.week + 1 : null;
+    const weekLink = weekNum ? ` · <a href="#week/${weekNum}" style="color:var(--accent);text-decoration:none">All Week ${weekNum} Events →</a>` : '';
+    document.getElementById('evt-detail').innerHTML =
       [eventData.city, eventData.state_prov, eventData.country].filter(Boolean).join(', ') +
-      (eventData.start_date ? '  ·  ' + eventData.start_date : '');
+      (eventData.start_date ? '  ·  ' + eventData.start_date : '') + weekLink;
 
     const cts = cycleTimes(rows), ds = deltas(rows), schedCts = scheduledCycleTimes(rows);
     document.getElementById('evt-stats').innerHTML = renderStats(cts, ds, schedCts);
@@ -771,6 +787,50 @@ function initTypeahead() {
         inp.value = items[taActive].dataset.key;
         dd.classList.add('hidden');
       } else { navigateEvent(); }
+    } else if (e.key === 'Escape') { dd.classList.add('hidden'); }
+  });
+  document.addEventListener('click', ev => {
+    if (inp && dd && !inp.contains(ev.target) && !dd.contains(ev.target)) dd.classList.add('hidden');
+  });
+}
+
+function showHomeTypeahead(q) {
+  const dd = document.getElementById('homeSearchDropdown');
+  if (!dd) return;
+  if (!q || !searchIndex) { dd.classList.add('hidden'); return; }
+  const ql = q.toLowerCase();
+  const hits = searchIndex.filter(e => e.key.includes(ql) || (e.value||'').toLowerCase().includes(ql)).slice(0, 12);
+  if (!hits.length) { dd.classList.add('hidden'); return; }
+  dd.innerHTML = hits.map((e, idx) =>
+    `<div class="typeahead-item" data-key="${e.key}" data-idx="${idx}">
+      <span class="typeahead-key">${e.key}</span><span class="typeahead-name">${e.value||''}</span>
+    </div>`).join('');
+  dd.querySelectorAll('.typeahead-item').forEach(el => {
+    el.addEventListener('mousedown', ev => {
+      ev.preventDefault();
+      location.hash = '#event/' + el.dataset.key;
+    });
+  });
+  taActive = -1;
+  dd.classList.remove('hidden');
+}
+
+function initHomeTypeahead() {
+  const inp = document.getElementById('homeSearch');
+  const dd  = document.getElementById('homeSearchDropdown');
+  if (!inp || !dd) return;
+  inp.addEventListener('input', () => { taActive = -1; showHomeTypeahead(inp.value.trim()); });
+  inp.addEventListener('keydown', e => {
+    const items = dd.querySelectorAll('.typeahead-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); taActive = Math.min(taActive + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle('active', i === taActive));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault(); taActive = Math.max(taActive - 1, -1);
+      items.forEach((el, i) => el.classList.toggle('active', i === taActive));
+    } else if (e.key === 'Enter') {
+      const key = taActive >= 0 && items[taActive] ? items[taActive].dataset.key : inp.value.trim().toLowerCase();
+      if (key) { dd.classList.add('hidden'); location.hash = '#event/' + key; }
     } else if (e.key === 'Escape') { dd.classList.add('hidden'); }
   });
   document.addEventListener('click', ev => {
