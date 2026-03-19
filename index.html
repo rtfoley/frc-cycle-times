@@ -223,7 +223,11 @@ function processMatches(data) {
       }
     }
     const delta = (m.time && m.actual_time) ? m.time - m.actual_time : null;
-    return { matchNum: m.match_number, scheduled: m.time, actual: m.actual_time, cycleTime, isPostBreak, delta, isOutlier: false };
+    // If actual date differs from scheduled date, the match was pushed to another day — discard timing data
+    const crossDay = m.time && m.actual_time &&
+      new Date(m.time * 1000).toISOString().slice(0, 10) !== new Date(m.actual_time * 1000).toISOString().slice(0, 10);
+    if (crossDay) { cycleTime = null; }
+    return { matchNum: m.match_number, scheduled: m.time, actual: m.actual_time, cycleTime, isPostBreak, delta: crossDay ? null : delta, isOutlier: crossDay };
   });
   // Mark IQR outliers (replays, data oddities) — don't include in stats or charts
   const rawCts = rows.map(r => r.cycleTime).filter(v => v != null);
