@@ -90,6 +90,8 @@ button.btn-primary { border: none; }
 .field label { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
 .field input { height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 0.9rem; }
 .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+.field select { height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 0.9rem; cursor: pointer; }
+.field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
 .typeahead-wrap { position: relative; }
 .typeahead-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-top: 2px; max-height: 260px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 .typeahead-item { padding: 8px 12px; cursor: pointer; font-size: 0.875rem; display: flex; gap: 10px; align-items: baseline; border-bottom: 1px solid var(--border); }
@@ -394,6 +396,19 @@ async function viewHome() {
               <input id="homeSearch" type="text" placeholder="Event code or name…" spellcheck="false" autocomplete="off">
               <div id="homeSearchDropdown" class="typeahead-dropdown hidden"></div>
             </div>
+          </div>
+          <div class="field" style="min-width:160px">
+            <label>Jump to Week</label>
+            <select id="homeWeekSelect" onchange="if(this.value) location.hash='#week/'+this.value" style="width:100%">
+              <option value="">Select week…</option>
+              ${weekKeys.filter(w => w !== 'other').map(w => {
+                const n = Number(w) + 1;
+                const evts = byWeek[w];
+                const dates = evts.map(e => e.start_date).filter(Boolean).sort();
+                const dateStr = dates.length ? ' · ' + fmtDate(dates[0]) : '';
+                return `<option value="${n}">Week ${n}${dateStr}</option>`;
+              }).join('')}
+            </select>
           </div>
         </div>
       </div>`;
