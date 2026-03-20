@@ -818,22 +818,35 @@ function aggSortVal(events, allRows, col, i) {
   }
 }
 
+function lastPlayedDelta(rows) {
+  if (!rows) return null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r.actual && r.delta != null && !r.isOutlier) return { delta: r.delta, matchNum: r.matchNum };
+  }
+  return null;
+}
+
 function renderAggTable(events, allRows, excluded, sortCol, sortDir) {
   excluded = excluded || new Set();
+  const today   = new Date().toISOString().slice(0, 10);
+  const anyLive = events.some(e => e.start_date && e.end_date && e.start_date <= today && e.end_date >= today);
+
   const cols = [
-    { label: '',           sortable: false },
-    { label: 'Week',       sortable: true  },
-    { label: 'Event',      sortable: true  },
-    { label: 'Location',   sortable: true  },
-    { label: 'Matches',    sortable: true  },
-    { label: 'Avg Sched CT', sortable: true },
-    { label: 'Mean CT',    sortable: true  },
-    { label: 'Median CT',  sortable: true  },
-    { label: 'Std Dev',    sortable: true  },
-    { label: 'Avg Δ Sched', sortable: true },
+    { label: '',             sortable: false },
+    { label: 'Week',         sortable: true  },
+    { label: 'Event',        sortable: true  },
+    { label: 'Location',     sortable: true  },
+    { label: 'Matches',      sortable: true  },
+    { label: 'Avg Sched CT', sortable: true  },
+    { label: 'Mean CT',      sortable: true  },
+    { label: 'Median CT',    sortable: true  },
+    { label: 'Std Dev',      sortable: true  },
+    { label: 'Avg Δ Sched',  sortable: true  },
+    ...(anyLive ? [{ label: 'Live Δ', sortable: false }] : []),
   ];
   const headCells = cols.map((c, ci) => {
-    if (!c.sortable) return '<th></th>';
+    if (!c.sortable) return `<th>${c.label}</th>`;
     const active = sortCol === ci;
     const icon = active ? (sortDir === 'asc' ? '▲' : '▼') : '▲';
     return `<th class="sortable${active ? ' sort-active' : ''}" onclick="sortAggTable(${ci})">${c.label}<i class="sort-icon">${icon}</i></th>`;
@@ -860,6 +873,23 @@ function renderAggTable(events, allRows, excluded, sortCol, sortDir) {
     const avgD     = ds.length ? fmtDeltaObj(mean(ds)) : { text: '—', cls: '' };
     const wk       = e.week != null ? `<a href="#week/${e.week + 1}" style="color:var(--accent);text-decoration:none">Wk ${e.week + 1}</a>` : '—';
     const excCls   = excluded.has(i) ? ' agg-excluded' : '';
+
+    let liveCell = '';
+    if (anyLive) {
+      const isLive = e.start_date && e.end_date && e.start_date <= today && e.end_date >= today;
+      if (isLive) {
+        const last = lastPlayedDelta(allRows[i]);
+        if (last) {
+          const d = fmtDeltaObj(last.delta);
+          liveCell = `<td class="${d.cls}" style="font-weight:500">${d.text} <span style="color:var(--muted);font-weight:400;font-size:0.78rem">Q${last.matchNum}</span></td>`;
+        } else {
+          liveCell = `<td class="muted-cell">not started</td>`;
+        }
+      } else {
+        liveCell = `<td class="muted-cell">—</td>`;
+      }
+    }
+
     html += `<tr data-idx="${i}"${excCls ? ` class="${excCls}"` : ''}>
       <td><input type="checkbox" ${excluded.has(i) ? '' : 'checked'} onchange="toggleAggEvent(${i})" title="Include in aggregate"></td>
       <td class="muted-cell">${wk}</td>
@@ -871,6 +901,7 @@ function renderAggTable(events, allRows, excluded, sortCol, sortDir) {
       <td>${cts.length ? fmtDur(median(cts)) : '—'}</td>
       <td>${cts.length ? fmtDur(stddev(cts)) : '—'}</td>
       <td class="${avgD.cls}">${avgD.text}</td>
+      ${liveCell}
     </tr>`;
   }
   html += '</tbody></table>';
