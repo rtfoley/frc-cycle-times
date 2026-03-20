@@ -827,6 +827,7 @@ function aggSortVal(events, allRows, col, i) {
     case 7: { const c = cycleTimes(rows); return c.length ? median(c) : Infinity; }
     case 8: { const c = cycleTimes(rows); return c.length ? stddev(c) : Infinity; }
     case 9: { const d = deltas(rows); return d.length ? mean(d) : Infinity; }
+    case 10: { const l = lastPlayedDelta(rows); return l ? l.delta : Infinity; }
     default: return i;
   }
 }
@@ -856,7 +857,7 @@ function renderAggTable(events, allRows, excluded, sortCol, sortDir) {
     { label: 'Median CT',    sortable: true  },
     { label: 'Std Dev',      sortable: true  },
     { label: 'Avg Δ Sched',  sortable: true  },
-    ...(anyLive ? [{ label: 'Live Δ', sortable: false }] : []),
+    ...(anyLive ? [{ label: 'Live Δ', sortable: true }] : []),
   ];
   const headCells = cols.map((c, ci) => {
     if (!c.sortable) return `<th>${c.label}</th>`;
